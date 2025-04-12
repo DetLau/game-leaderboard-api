@@ -1,52 +1,135 @@
 // index.js
 const express = require('express');
 const cors = require('cors');
+const admin = require('firebase-admin');
+require('dotenv').config(); // Load environment variables from .env
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const port = process.env.PORT || 3000;
+
+// Initialize Firebase Admin SDK
+// Ensure that your 'serviceAccountKey.json' file is in the project root and is added to .gitignore.
+const serviceAccount = require('./serviceAccountKey.json');
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
+
+// Get Firestore instance
+const db = admin.firestore();
 
 // Enable CORS so your frontend can make requests
 app.use(cors());
-// Enable JSON parsing for incoming requests
+
+// Parse JSON request bodies
 app.use(express.json());
 
-// In-memory leaderboard storage (for production, use a database)
-let leaderboard = [];
-
-// POST endpoint: Submit a new score
-app.post('/leaderboard', (req, res) => {
-  const newScore = req.body;
-
-  // Validate: name must exist and score must be a number
-  if (!newScore.name || typeof newScore.score !== 'number') {
-    return res.status(400).json({ error: 'Invalid score data' });
-  }
-
-  // Add score to leaderboard
-  leaderboard.push(newScore);
-
-  // Sort the leaderboard:
-  // 1. Higher score comes first
-  // 2. If scores are equal, lower timeUsed wins (if provided)
-  // 3. Otherwise, newer submissions come first
-  leaderboard.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    if (a.timeUsed && b.timeUsed) return a.timeUsed - b.timeUsed;
-    return new Date(b.date) - new Date(a.date);
-  });
-
-  // Keep only the top 10 scores
-  leaderboard = leaderboard.slice(0, 10);
-
-  res.status(201).json({ message: 'Score submitted successfully' });
+// Default route to confirm that the API is running
+app.get('/', (req, res) => {
+  res.send('Leaderboard API is running');
 });
 
-// GET endpoint: Retrieve the top 10 leaderboard entries
-app.get('/leaderboard/top10', (req, res) => {
-  res.json(leaderboard);
+// *** STEP 7: Test Endpoint ***
+// This endpoint helps you verify that POST requests are hitting your server.
+app.post('/test', (req, res) => {
+  console.log("POST /test endpoint hit");
+  res.send("Test endpoint reached");
+});
+
+// POST /leaderboard: Add a new score to the leaderboard
+app.post('/leaderboard', async (req, res) => {
+  console.log("POST /leaderboard endpoint hit"); // Debug log
+  try {
+    // Destructure and validate required fields
+    const { name, score, timeUsed, allFlipped, date } = req.body;
+    if (!name || typeof score !== 'number' || timeUsed === undefined || allFlipped === undefined || !date) {
+      console.error("Validation failed:", req.body);
+      return res.status(400).send('Missing required fields');
+    }
+
+    // Add the new score as a document in the 'leaderboard' collection with a server timestamp
+    const docRef = await db.collection('leaderboard').add({
+      name,
+      score,
+      timeUsed,
+      allFlipped,
+      date,
+      timestamp: admin.firestore.FieldValue.serverTimestamp() // For secondary sorting
+    });
+
+    console.log('Added document with ID:', docRef.id);
+    res.status(201).send(`Score added successfully with ID: ${docRef.id}`);
+  } catch (error) {
+    console.error('Error adding score:', error);
+    res.status(500).send('Error adding score');
+  }
+});
+
+// GET /leaderboard/top10: Retrieve the top 10 leaderboard entries
+app.get('/leaderboard/top10', async (req, res) => {
+  try {
+    // Query Firestore to get the top 10 scores, ordered by score (descending) and timestamp (ascending)
+    const snapshot = await db.collection('leaderboard')
+      .orderBy('score', 'desc')
+      .orderBy('timestamp', 'asc')
+      .limit(10)
+      .get();
+
+    const scores = [];
+    snapshot.forEach(doc => {
+      scores.push({
+        id: doc.id,
+        ...doc.data()
+      });
+    });
+
+    res.status(200).json(scores);
+  } catch (error) {
+    console.error('Error fetching leaderboard:', error);
+    res.status(500).send('Error fetching leaderboard');
+  }
+});
+
+// DELETE /leaderboard: Clear the leaderboard using batch deletion
+app.delete('/leaderboard', async (req, res) => {
+  try {
+    const collectionRef = db.collection('leaderboard');
+    const query = collectionRef.orderBy('timestamp').limit(500); // Adjust batch size as needed
+
+    // Recursive batch deletion function
+    async function deleteQueryBatch(query, resolve) {
+      const snapshot = await query.get();
+      if (snapshot.size === 0) {
+        resolve();
+        return;
+      }
+
+      const batch = db.batch();
+      snapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      await batch.commit();
+      console.log(`Deleted ${snapshot.size} documents`);
+
+      // Recurse on the next process tick to avoid stack overflow
+      process.nextTick(() => {
+        deleteQueryBatch(query, resolve);
+      });
+    }
+
+    await new Promise((resolve, reject) => {
+      deleteQueryBatch(query, resolve).catch(reject);
+    });
+
+    res.status(204).send('Leaderboard cleared successfully');
+  } catch (error) {
+    console.error('Error clearing leaderboard:', error);
+    res.status(500).send('Error clearing leaderboard');
+  }
 });
 
 // Start the server
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+app.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
 });
