@@ -2,10 +2,10 @@
 const express = require('express');
 const cors = require('cors');
 const admin = require('firebase-admin');
-require('dotenv').config(); // Load environment variables from .env
+require('dotenv').config({ path: './mongo.env' }); // Load environment variables from .env
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 3001;
 
 console.log("Index.js is running!");
 
@@ -26,15 +26,15 @@ app.use(cors());
 // Parse JSON request bodies
 app.use(express.json());
 
-// *** Add a Middleware Logger to Log Every Incoming Request ***
+// Global request logger (for debugging)
 app.use((req, res, next) => {
-  console.log(`${req.method} ${req.url}`);
+  console.log(`Incoming request: ${req.method} ${req.url}`);
   next();
 });
 
 // Default route to confirm that the API is running
 app.get('/', (req, res) => {
-  res.send('Leaderboard API is running');
+  res.send('Leaderboard API is running on port 3001');
 });
 
 // Temporary Test Endpoint (for debugging POST requests)
@@ -75,7 +75,6 @@ app.post('/leaderboard', async (req, res) => {
 // GET /leaderboard/top10: Retrieve the top 10 leaderboard entries
 app.get('/leaderboard/top10', async (req, res) => {
   try {
-    // Query Firestore to get the top 10 scores, ordered by score (desc) and timestamp (asc)
     const snapshot = await db.collection('leaderboard')
       .orderBy('score', 'desc')
       .orderBy('timestamp', 'asc')
@@ -103,7 +102,6 @@ app.delete('/leaderboard', async (req, res) => {
     const collectionRef = db.collection('leaderboard');
     const query = collectionRef.orderBy('timestamp').limit(500); // Adjust batch size as needed
 
-    // Recursive batch deletion function
     async function deleteQueryBatch(query, resolve) {
       const snapshot = await query.get();
       if (snapshot.size === 0) {

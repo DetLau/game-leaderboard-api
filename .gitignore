@@ -1,48 +1,15 @@
 # Node modules directory
 node_modules/
 
-# Firebase Admin service account key (do not commit sensitive credentials)
-serviceAccountKey.json
-
-# Environment variables file
+# Environment files (ensure sensitive info stays local)
 .env
+mongo.env
+
+# Service account keys (if applicable)
+serviceAccountKey.json
 
 # Build output directory
 dist/
 
-# Logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
 # macOS system files
 .DS_Store
-
-# Editor folders and files
-.vscode/
-.idea/# Node modules (all dependencies)
-node_modules/
-
-# Firebase Admin service account key (do not commit sensitive credentials)
-serviceAccountKey.json
-
-# Environment variables file
-.env
-
-# Build output directory (if generated)
-dist/
-
-# Log files
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# macOS system files
-.DS_Store
-
-# Editor directories and files (optional)
-.vscode/
-.idea/
-
-# Other temporary files
-*.tmp
