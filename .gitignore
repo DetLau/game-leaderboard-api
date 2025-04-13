@@ -1,4 +1,26 @@
-# Node modules (all dependencies)
+# Node modules directory
+node_modules/
+
+# Firebase Admin service account key (do not commit sensitive credentials)
+serviceAccountKey.json
+
+# Environment variables file
+.env
+
+# Build output directory
+dist/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# macOS system files
+.DS_Store
+
+# Editor folders and files
+.vscode/
+.idea/# Node modules (all dependencies)
 node_modules/
 
 # Firebase Admin service account key (do not commit sensitive credentials)

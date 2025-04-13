@@ -7,11 +7,10 @@ require('dotenv').config(); // Load environment variables from .env
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Log that the file is running
 console.log("Index.js is running!");
 
 // Initialize Firebase Admin SDK
-// Ensure your 'serviceAccountKey.json' is in the project root and is added to .gitignore.
+// Ensure your 'serviceAccountKey.json' file is in the project root and is added to .gitignore.
 const serviceAccount = require('./serviceAccountKey.json');
 
 admin.initializeApp({
@@ -26,6 +25,12 @@ app.use(cors());
 
 // Parse JSON request bodies
 app.use(express.json());
+
+// *** Add a Middleware Logger to Log Every Incoming Request ***
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.url}`);
+  next();
+});
 
 // Default route to confirm that the API is running
 app.get('/', (req, res) => {
@@ -42,6 +47,7 @@ app.post('/test', (req, res) => {
 app.post('/leaderboard', async (req, res) => {
   console.log("POST /leaderboard endpoint hit"); // Debug log
   try {
+    // Destructure and validate required fields
     const { name, score, timeUsed, allFlipped, date } = req.body;
     if (!name || typeof score !== 'number' || timeUsed === undefined || allFlipped === undefined || !date) {
       console.error("Validation failed. Request body:", req.body);
@@ -69,6 +75,7 @@ app.post('/leaderboard', async (req, res) => {
 // GET /leaderboard/top10: Retrieve the top 10 leaderboard entries
 app.get('/leaderboard/top10', async (req, res) => {
   try {
+    // Query Firestore to get the top 10 scores, ordered by score (desc) and timestamp (asc)
     const snapshot = await db.collection('leaderboard')
       .orderBy('score', 'desc')
       .orderBy('timestamp', 'asc')
@@ -94,8 +101,9 @@ app.get('/leaderboard/top10', async (req, res) => {
 app.delete('/leaderboard', async (req, res) => {
   try {
     const collectionRef = db.collection('leaderboard');
-    const query = collectionRef.orderBy('timestamp').limit(500);
+    const query = collectionRef.orderBy('timestamp').limit(500); // Adjust batch size as needed
 
+    // Recursive batch deletion function
     async function deleteQueryBatch(query, resolve) {
       const snapshot = await query.get();
       if (snapshot.size === 0) {
