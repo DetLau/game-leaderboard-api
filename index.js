@@ -4,30 +4,29 @@ const dotenv = require('dotenv');
 const admin = require('firebase-admin');
 const express = require('express');
 
-// Load environment variables from mongo.env (located in the project root)
+// Load environment variables from mongo.env (located in your project root)
 dotenv.config({ path: path.resolve(__dirname, 'mongo.env') });
 
-// Log the port from the environment (for debugging)
+// Log the PORT from env for debugging
 console.log("PORT from env:", process.env.PORT);
 
-// Retrieve the base64‑encoded service account JSON from your environment variables
+// Get the FIREBASE_SERVICE_ACCOUNT environment variable (base64-encoded)
 const encodedServiceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
 if (!encodedServiceAccount) {
   throw new Error('FIREBASE_SERVICE_ACCOUNT environment variable is not set!');
 }
 
-// Decode the base64 string to get the raw JSON string
 let serviceAccountJson;
 try {
+  // Decode the base64-encoded string
   serviceAccountJson = Buffer.from(encodedServiceAccount, 'base64').toString('utf-8');
 } catch (err) {
   throw new Error('Error decoding FIREBASE_SERVICE_ACCOUNT: ' + err);
 }
 
-// Replace literal escaped newline sequences ("\\n") with actual newline characters ("\n")
+// Sometimes the decoding results in literal "\n" that needs to be converted to actual newline characters.
 const fixedServiceAccountJson = serviceAccountJson.replace(/\\n/g, "\n");
 
-// Parse the JSON credentials
 let serviceAccount;
 try {
   serviceAccount = JSON.parse(fixedServiceAccountJson);
@@ -35,34 +34,29 @@ try {
   throw new Error('Error parsing decoded FIREBASE_SERVICE_ACCOUNT: ' + err);
 }
 
-// Initialize the Firebase Admin SDK using the service account credentials
+// Initialize Firebase Admin SDK with the service account credentials
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
 });
 
-// Connect to Firestore using the Admin SDK
+// Connect to Firestore
 const db = admin.firestore();
 console.log('Connected to Firestore with project ID:', serviceAccount.project_id);
 
 // Set up an Express application
 const app = express();
-
-// Enable CORS (allowing requests from any origin)
 app.use(require('cors')());
-
-// Parse JSON request bodies
 app.use(express.json());
 
-// Global request logging (for debugging purposes)
+// Logging middleware for debugging
 app.use((req, res, next) => {
   console.log(`Incoming request: ${req.method} ${req.url}`);
   next();
 });
 
-// Default route: Confirm that the API is running and Firestore is accessible
+// Default endpoint: Check Firestore connectivity
 app.get('/', async (req, res) => {
   try {
-    // Optional: perform a simple read from a 'test' collection
     await db.collection('test').limit(1).get();
     res.send('Firebase Admin initialized and Firestore is accessible!');
   } catch (err) {
@@ -71,11 +65,11 @@ app.get('/', async (req, res) => {
   }
 });
 
-// Temporary test endpoint (for debugging POST requests)
 app.post('/test', (req, res) => {
   console.log("POST /test endpoint hit");
   res.send("Test endpoint reached");
 });
+
 
 // POST /leaderboard: Add a new score to the leaderboard
 app.post('/leaderboard', async (req, res) => {
