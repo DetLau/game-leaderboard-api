@@ -1,40 +1,13 @@
 // index.js
-const path = require('path');
-const dotenv = require('dotenv');
-const admin = require('firebase-admin');
 const express = require('express');
+const cors = require('cors');
+const admin = require('firebase-admin');
 
-// Load environment variables from mongo.env (located in your project root)
-dotenv.config({ path: path.resolve(__dirname, 'mongo.env') });
+// Load the Firebase service account key from the local file.
+// Ensure that 'serviceAccountKey.json' is in the project root.
+const serviceAccount = require('./serviceAccountKey.json');
 
-// Log the PORT from env for debugging
-console.log("PORT from env:", process.env.PORT);
-
-// Get the FIREBASE_SERVICE_ACCOUNT environment variable (base64-encoded)
-const encodedServiceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
-if (!encodedServiceAccount) {
-  throw new Error('FIREBASE_SERVICE_ACCOUNT environment variable is not set!');
-}
-
-let serviceAccountJson;
-try {
-  // Decode the base64-encoded string
-  serviceAccountJson = Buffer.from(encodedServiceAccount, 'base64').toString('utf-8');
-} catch (err) {
-  throw new Error('Error decoding FIREBASE_SERVICE_ACCOUNT: ' + err);
-}
-
-// Sometimes the decoding results in literal "\n" that needs to be converted to actual newline characters.
-const fixedServiceAccountJson = serviceAccountJson.replace(/\\n/g, "\n");
-
-let serviceAccount;
-try {
-  serviceAccount = JSON.parse(fixedServiceAccountJson);
-} catch (err) {
-  throw new Error('Error parsing decoded FIREBASE_SERVICE_ACCOUNT: ' + err);
-}
-
-// Initialize Firebase Admin SDK with the service account credentials
+// Initialize Firebase Admin SDK using the service account credentials
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
 });
@@ -43,52 +16,51 @@ admin.initializeApp({
 const db = admin.firestore();
 console.log('Connected to Firestore with project ID:', serviceAccount.project_id);
 
-// Set up an Express application
+// Create an Express app
 const app = express();
-app.use(require('cors')());
+
+// Enable CORS so your frontend can make requests
+app.use(cors());
+
+// Enable JSON parsing for incoming requests
 app.use(express.json());
 
-// Logging middleware for debugging
+// Global logging for incoming requests (optional, for debugging)
 app.use((req, res, next) => {
   console.log(`Incoming request: ${req.method} ${req.url}`);
   next();
 });
 
-// Default endpoint: Check Firestore connectivity
-app.get('/', async (req, res) => {
-  try {
-    await db.collection('test').limit(1).get();
-    res.send('Firebase Admin initialized and Firestore is accessible!');
-  } catch (err) {
-    console.error('Error accessing Firestore:', err);
-    res.status(500).send('Error connecting to Firestore');
-  }
+// Default route to verify the API is running
+app.get('/', (req, res) => {
+  res.send('Leaderboard API is running');
 });
 
+// Temporary test endpoint to verify POST requests
 app.post('/test', (req, res) => {
   console.log("POST /test endpoint hit");
   res.send("Test endpoint reached");
 });
 
-
 // POST /leaderboard: Add a new score to the leaderboard
 app.post('/leaderboard', async (req, res) => {
   console.log("POST /leaderboard endpoint hit");
   try {
+    // Destructure and validate required fields
     const { name, score, timeUsed, allFlipped, date } = req.body;
     if (!name || typeof score !== 'number' || timeUsed === undefined || allFlipped === undefined || !date) {
       console.error("Validation failed. Request body:", req.body);
       return res.status(400).send('Missing required fields');
     }
 
-    // Add the new score as a document in the 'leaderboard' collection with a server timestamp
+    // Add the new score to the 'leaderboard' collection with a server timestamp
     const docRef = await db.collection('leaderboard').add({
       name,
       score,
       timeUsed,
       allFlipped,
       date,
-      timestamp: admin.firestore.FieldValue.serverTimestamp()
+      timestamp: admin.firestore.FieldValue.serverTimestamp() // For secondary sorting
     });
 
     console.log('Added document with ID:', docRef.id);
@@ -102,6 +74,7 @@ app.post('/leaderboard', async (req, res) => {
 // GET /leaderboard/top10: Retrieve the top 10 leaderboard entries
 app.get('/leaderboard/top10', async (req, res) => {
   try {
+    // Query Firestore to get the top 10 scores, ordered by score (desc) and timestamp (asc)
     const snapshot = await db.collection('leaderboard')
       .orderBy('score', 'desc')
       .orderBy('timestamp', 'asc')
@@ -127,9 +100,9 @@ app.get('/leaderboard/top10', async (req, res) => {
 app.delete('/leaderboard', async (req, res) => {
   try {
     const collectionRef = db.collection('leaderboard');
-    const query = collectionRef.orderBy('timestamp').limit(500);
+    const query = collectionRef.orderBy('timestamp').limit(500); // Adjust batch size as needed
 
-    // Recursive function to delete documents in batches
+    // Recursive batch deletion function
     async function deleteQueryBatch(query, resolve) {
       const snapshot = await query.get();
       if (snapshot.size === 0) {
@@ -158,7 +131,7 @@ app.delete('/leaderboard', async (req, res) => {
   }
 });
 
-// Start the server on PORT (from env or default to 3001)
+// Use PORT from environment if set, otherwise default to 3001
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

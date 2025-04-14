@@ -2,12 +2,10 @@
 /node_modules/
 
 # Environment variables and configuration files (do not commit these as they contain secrets)
-# .env
-# .env.local
-# mongo.env
+.env
+.env.local
+mongo.env
 
-# Firebase service account key (do not commit this secret)
-serviceAccountKey.json
 
 # Build and output directories
 /dist/
