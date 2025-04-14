@@ -9,14 +9,19 @@ const port = process.env.PORT || 3001;
 
 console.log("Index.js is running!");
 
-// Ensure that the FIREBASE_SERVICE_ACCOUNT variable exists
+// Check that the environment variable exists
 if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
   console.error("FIREBASE_SERVICE_ACCOUNT is not defined in your environment");
   process.exit(1);
 }
 
-// Replace escaped newline characters (“\\n”) with actual newlines
+// Obtain the raw string from the environment variable
 const rawServiceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
+
+// For debugging: Uncomment the line below to see the raw value in the logs
+// console.log("Raw FIREBASE_SERVICE_ACCOUNT:", rawServiceAccount);
+
+// Replace any escaped newline characters ("\\n") with actual newline characters
 const fixedServiceAccount = rawServiceAccount.replace(/\\n/g, '\n');
 
 let serviceAccount;
@@ -27,7 +32,7 @@ try {
   process.exit(1);
 }
 
-// Initialize Firebase Admin SDK with the parsed credentials
+// Initialize the Firebase Admin SDK with the parsed credentials
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
 });
@@ -39,13 +44,13 @@ const db = admin.firestore();
 app.use(cors());
 app.use(express.json());
 
-// Global request logger (for debugging)
+// Global request logger for debugging purposes
 app.use((req, res, next) => {
   console.log(`Incoming request: ${req.method} ${req.url}`);
   next();
 });
 
-// Root endpoint to confirm the API is running
+// Root endpoint to verify that the API is running
 app.get('/', (req, res) => {
   res.send(`Leaderboard API is running on port ${port}`);
 });
@@ -100,20 +105,31 @@ app.get('/leaderboard/top10', async (req, res) => {
   }
 });
 
-// DELETE /leaderboard: Clear the leaderboard from Firestore
+// DELETE /leaderboard: Clear the leaderboard using batch deletion
 app.delete('/leaderboard', async (req, res) => {
   try {
     const collectionRef = db.collection('leaderboard');
-    const snapshot = await collectionRef.get();
-    if (snapshot.empty) {
-      return res.status(200).send("No leaderboard entries found");
+    const query = collectionRef.orderBy('timestamp').limit(500);
+    async function deleteQueryBatch(query, resolve) {
+      const snapshot = await query.get();
+      if (snapshot.size === 0) {
+        resolve();
+        return;
+      }
+      const batch = db.batch();
+      snapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+      await batch.commit();
+      console.log(`Deleted ${snapshot.size} documents`);
+      process.nextTick(() => {
+        deleteQueryBatch(query, resolve);
+      });
     }
-    const batch = db.batch();
-    snapshot.forEach(doc => {
-      batch.delete(doc.ref);
+    await new Promise((resolve, reject) => {
+      deleteQueryBatch(query, resolve).catch(reject);
     });
-    await batch.commit();
-    res.status(204).send("Leaderboard cleared successfully");
+    res.status(204).send('Leaderboard cleared successfully');
   } catch (error) {
     console.error('Error clearing leaderboard:', error);
     res.status(500).send('Error clearing leaderboard');
