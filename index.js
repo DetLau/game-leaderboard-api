@@ -9,34 +9,34 @@ const port = process.env.PORT || 3001;
 
 console.log("Index.js is running!");
 
-// Ensure that the FIREBASE_SERVICE_ACCOUNT variable exists
+// Verify FIREBASE_SERVICE_ACCOUNT is provided
 if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
   console.error("FIREBASE_SERVICE_ACCOUNT is not defined in your environment");
   process.exit(1);
 }
 
-// Decode the base64-encoded service account JSON from the environment variable
+// Decode the base64-encoded service account JSON
 const rawValue = process.env.FIREBASE_SERVICE_ACCOUNT;
 const decodedServiceAccount = Buffer.from(rawValue, 'base64').toString('utf8');
-console.log("Decoded FIREBASE_SERVICE_ACCOUNT:", decodedServiceAccount); // For debugging; remove in production
+// Replace escaped newline sequences ("\\n") with real newlines ("\n")
+const fixedServiceAccount = decodedServiceAccount.replace(/\\n/g, '\n');
 
 let serviceAccount;
 try {
-  serviceAccount = JSON.parse(decodedServiceAccount);
+  serviceAccount = JSON.parse(fixedServiceAccount);
 } catch (err) {
   console.error("Error parsing decoded FIREBASE_SERVICE_ACCOUNT:", err);
   process.exit(1);
 }
 
-// Initialize Firebase Admin SDK with the parsed credentials
+// Initialize Firebase Admin with the parsed credentials
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
 });
 
-// Get Firestore instance
 const db = admin.firestore();
 
-// Enable CORS and JSON parsing
+// Middleware
 app.use(cors());
 app.use(express.json());
 
@@ -46,12 +46,12 @@ app.use((req, res, next) => {
   next();
 });
 
-// Root endpoint to verify that the API is running
+// Root endpoint
 app.get('/', (req, res) => {
   res.send(`Leaderboard API is running on port ${port}`);
 });
 
-// Temporary Test Endpoint (for debugging POST requests)
+// Temporary test endpoint
 app.post('/test', (req, res) => {
   console.log("POST /test endpoint hit");
   res.send("Test endpoint reached");
@@ -101,7 +101,7 @@ app.get('/leaderboard/top10', async (req, res) => {
   }
 });
 
-// DELETE /leaderboard: Clear the leaderboard in Firestore
+// DELETE /leaderboard: Clear the leaderboard using batch deletion
 app.delete('/leaderboard', async (req, res) => {
   try {
     const collectionRef = db.collection('leaderboard');
@@ -121,7 +121,7 @@ app.delete('/leaderboard', async (req, res) => {
   }
 });
 
-// Start the server
+// Start server
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
-}); 
+});
