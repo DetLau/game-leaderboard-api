@@ -9,10 +9,16 @@ const port = process.env.PORT || 3001;
 
 console.log("Index.js is running!");
 
-// Initialize Firebase Admin SDK using the credentials from the environment variable
-// This expects that FIREBASE_SERVICE_ACCOUNT is set in mongo.env as a single-line JSON string.
+// Verify that the service account string is loaded
+if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
+  console.error("FIREBASE_SERVICE_ACCOUNT is not defined in your environment");
+  process.exit(1);
+}
+
+// Parse the service account JSON from the environment variable
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
+// Initialize Firebase Admin SDK using the credentials from the environment variable
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
 });
