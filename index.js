@@ -9,17 +9,24 @@ const port = process.env.PORT || 3001;
 
 console.log("Index.js is running!");
 
-// Verify that the FIREBASE_SERVICE_ACCOUNT variable is set
+// Verify that FIREBASE_SERVICE_ACCOUNT exists
 if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
   console.error("FIREBASE_SERVICE_ACCOUNT is not defined in your environment");
   process.exit(1);
 }
 
-// Log the environment variable (for debugging; remove in production)
-// console.log("FIREBASE_SERVICE_ACCOUNT:", process.env.FIREBASE_SERVICE_ACCOUNT);
+// Replace all escaped newline sequences (“\\n”) with actual newline characters
+const rawServiceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
+const fixedServiceAccount = rawServiceAccount.replace(/\\n/g, '\n');
 
-// Parse the Firebase service account from the environment variable
-const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+// Parse the fixed JSON string to get the service account object
+let serviceAccount;
+try {
+  serviceAccount = JSON.parse(fixedServiceAccount);
+} catch (err) {
+  console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT:", err);
+  process.exit(1);
+}
 
 // Initialize Firebase Admin SDK using the parsed credentials
 admin.initializeApp({
@@ -35,7 +42,7 @@ app.use(cors());
 // Parse JSON request bodies
 app.use(express.json());
 
-// Global request logger (for debugging purposes)
+// Global request logger for debugging purposes
 app.use((req, res, next) => {
   console.log(`Incoming request: ${req.method} ${req.url}`);
   next();
@@ -43,7 +50,7 @@ app.use((req, res, next) => {
 
 // Default route to verify that the API is running
 app.get('/', (req, res) => {
-  res.send('Leaderboard API is running on port ' + port);
+  res.send(`Leaderboard API is running on port ${port}`);
 });
 
 // Temporary Test Endpoint (for debugging POST requests)
@@ -87,10 +94,7 @@ app.get('/leaderboard/top10', async (req, res) => {
       .get();
     const scores = [];
     snapshot.forEach(doc => {
-      scores.push({
-        id: doc.id,
-        ...doc.data()
-      });
+      scores.push({ id: doc.id, ...doc.data() });
     });
     res.status(200).json(scores);
   } catch (error) {
@@ -111,14 +115,10 @@ app.delete('/leaderboard', async (req, res) => {
         return;
       }
       const batch = db.batch();
-      snapshot.docs.forEach(doc => {
-        batch.delete(doc.ref);
-      });
+      snapshot.docs.forEach(doc => { batch.delete(doc.ref); });
       await batch.commit();
       console.log(`Deleted ${snapshot.size} documents`);
-      process.nextTick(() => {
-        deleteQueryBatch(query, resolve);
-      });
+      process.nextTick(() => { deleteQueryBatch(query, resolve); });
     }
     await new Promise((resolve, reject) => {
       deleteQueryBatch(query, resolve).catch(reject);
