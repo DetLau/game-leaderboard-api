@@ -1,49 +1,53 @@
 // index.js
 const express = require('express');
 const cors = require('cors');
-const fs = require('fs');
-const path = require('path');
+const admin = require('firebase-admin');
+require('dotenv').config({ path: './mongo.env' }); // Load environment variables from mongo.env
 
 const app = express();
-const PORT = process.env.PORT || 3001;
-const LEADERBOARD_FILE = path.join(__dirname, 'leaderboard.json');
+const port = process.env.PORT || 3001;
 
-// Enable CORS and JSON parsing
+console.log("Index.js is running!");
+
+// Ensure that the FIREBASE_SERVICE_ACCOUNT variable exists
+if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
+  console.error("FIREBASE_SERVICE_ACCOUNT is not defined in your environment");
+  process.exit(1);
+}
+
+// Replace escaped newline characters (“\\n”) with actual newlines
+const rawServiceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
+const fixedServiceAccount = rawServiceAccount.replace(/\\n/g, '\n');
+
+let serviceAccount;
+try {
+  serviceAccount = JSON.parse(fixedServiceAccount);
+} catch (err) {
+  console.error("Error parsing FIREBASE_SERVICE_ACCOUNT:", err);
+  process.exit(1);
+}
+
+// Initialize Firebase Admin SDK with the parsed credentials
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
+
+// Get Firestore instance
+const db = admin.firestore();
+
+// Enable CORS and JSON body parsing
 app.use(cors());
 app.use(express.json());
 
-// Improved function to load leaderboard data from the file
-function loadLeaderboard() {
-  if (fs.existsSync(LEADERBOARD_FILE)) {
-    try {
-      const data = fs.readFileSync(LEADERBOARD_FILE, 'utf8').trim();
-      if (!data) return [];
-      return JSON.parse(data);
-    } catch (err) {
-      console.error('Error reading leaderboard file:', err);
-      // Reset the leaderboard file to an empty array if parsing fails
-      saveLeaderboard([]);
-      return [];
-    }
-  }
-  return [];
-}
+// Global request logger (for debugging)
+app.use((req, res, next) => {
+  console.log(`Incoming request: ${req.method} ${req.url}`);
+  next();
+});
 
-// Function to save leaderboard data to the file with basic error handling
-function saveLeaderboard(data) {
-  try {
-    fs.writeFileSync(LEADERBOARD_FILE, JSON.stringify(data, null, 2));
-  } catch (err) {
-    console.error('Error writing leaderboard file:', err);
-  }
-}
-
-// Initialize leaderboard (or empty array if file is missing or invalid)
-let leaderboard = loadLeaderboard();
-
-// Root endpoint to verify that the API is running
+// Root endpoint to confirm the API is running
 app.get('/', (req, res) => {
-  res.send(`Leaderboard API is running on port ${PORT}`);
+  res.send(`Leaderboard API is running on port ${port}`);
 });
 
 // Temporary Test Endpoint (for debugging POST requests)
@@ -52,50 +56,71 @@ app.post('/test', (req, res) => {
   res.send("Test endpoint reached");
 });
 
-// POST /leaderboard: Submit a new score
-app.post('/leaderboard', (req, res) => {
-  const newScore = req.body;
-
-  // Validate required fields
-  if (!newScore.name || typeof newScore.score !== 'number') {
-    return res.status(400).json({ error: 'Invalid score data' });
+// POST /leaderboard: Add a new score to the leaderboard (Firestore)
+app.post('/leaderboard', async (req, res) => {
+  console.log("POST /leaderboard endpoint hit");
+  try {
+    const { name, score, timeUsed, allFlipped, date } = req.body;
+    if (!name || typeof score !== 'number' || timeUsed === undefined || allFlipped === undefined || !date) {
+      console.error("Validation failed. Request body:", req.body);
+      return res.status(400).send('Missing required fields');
+    }
+    const docRef = await db.collection('leaderboard').add({
+      name,
+      score,
+      timeUsed,
+      allFlipped,
+      date,
+      timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+    console.log('Added document with ID:', docRef.id);
+    res.status(201).send(`Score added successfully with ID: ${docRef.id}`);
+  } catch (error) {
+    console.error('Error adding score:', error);
+    res.status(500).send('Error adding score');
   }
-
-  // Add the new score to the leaderboard array
-  leaderboard.push(newScore);
-
-  // Sort the leaderboard:
-  // 1. Higher score comes first.
-  // 2. If scores are equal and timeUsed is provided, the lower timeUsed wins.
-  // 3. Otherwise, more recent date wins.
-  leaderboard.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    if (a.timeUsed && b.timeUsed) return a.timeUsed - b.timeUsed;
-    return new Date(b.date) - new Date(a.date);
-  });
-
-  // Keep only the top 10 scores
-  leaderboard = leaderboard.slice(0, 10);
-
-  // Save the updated leaderboard back to the file
-  saveLeaderboard(leaderboard);
-
-  res.status(201).json({ message: 'Score submitted successfully' });
 });
 
 // GET /leaderboard/top10: Retrieve the top 10 leaderboard entries
-app.get('/leaderboard/top10', (req, res) => {
-  res.json(leaderboard);
+app.get('/leaderboard/top10', async (req, res) => {
+  try {
+    const snapshot = await db.collection('leaderboard')
+      .orderBy('score', 'desc')
+      .orderBy('timestamp', 'asc')
+      .limit(10)
+      .get();
+    const scores = [];
+    snapshot.forEach(doc => {
+      scores.push({ id: doc.id, ...doc.data() });
+    });
+    res.status(200).json(scores);
+  } catch (error) {
+    console.error('Error fetching leaderboard:', error);
+    res.status(500).send('Error fetching leaderboard');
+  }
 });
 
-// DELETE /leaderboard: Clear the leaderboard
-app.delete('/leaderboard', (req, res) => {
-  leaderboard = [];
-  saveLeaderboard(leaderboard);
-  res.json({ message: 'Leaderboard cleared' });
+// DELETE /leaderboard: Clear the leaderboard from Firestore
+app.delete('/leaderboard', async (req, res) => {
+  try {
+    const collectionRef = db.collection('leaderboard');
+    const snapshot = await collectionRef.get();
+    if (snapshot.empty) {
+      return res.status(200).send("No leaderboard entries found");
+    }
+    const batch = db.batch();
+    snapshot.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+    await batch.commit();
+    res.status(204).send("Leaderboard cleared successfully");
+  } catch (error) {
+    console.error('Error clearing leaderboard:', error);
+    res.status(500).send('Error clearing leaderboard');
+  }
 });
 
 // Start the server
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+app.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
 });
