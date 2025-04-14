@@ -9,14 +9,16 @@ const port = process.env.PORT || 3001;
 
 console.log("Index.js is running!");
 
-// Ensure that the FIREBASE_SERVICE_ACCOUNT environment variable exists
+// Ensure that the FIREBASE_SERVICE_ACCOUNT variable exists
 if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
   console.error("FIREBASE_SERVICE_ACCOUNT is not defined in your environment");
   process.exit(1);
 }
 
 // Decode the base64-encoded service account JSON from the environment variable
-const decodedServiceAccount = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT, 'base64').toString('utf8');
+const rawValue = process.env.FIREBASE_SERVICE_ACCOUNT;
+const decodedServiceAccount = Buffer.from(rawValue, 'base64').toString('utf8');
+console.log("Decoded FIREBASE_SERVICE_ACCOUNT:", decodedServiceAccount); // For debugging; remove in production
 
 let serviceAccount;
 try {
@@ -26,7 +28,7 @@ try {
   process.exit(1);
 }
 
-// Initialize Firebase Admin SDK with the decoded credentials
+// Initialize Firebase Admin SDK with the parsed credentials
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
 });
@@ -34,7 +36,7 @@ admin.initializeApp({
 // Get Firestore instance
 const db = admin.firestore();
 
-// Enable CORS and JSON body parsing
+// Enable CORS and JSON parsing
 app.use(cors());
 app.use(express.json());
 
@@ -44,12 +46,12 @@ app.use((req, res, next) => {
   next();
 });
 
-// Root endpoint to confirm the API is running
+// Root endpoint to verify that the API is running
 app.get('/', (req, res) => {
   res.send(`Leaderboard API is running on port ${port}`);
 });
 
-// Temporary Test Endpoint (for POST debugging)
+// Temporary Test Endpoint (for debugging POST requests)
 app.post('/test', (req, res) => {
   console.log("POST /test endpoint hit");
   res.send("Test endpoint reached");
@@ -59,13 +61,11 @@ app.post('/test', (req, res) => {
 app.post('/leaderboard', async (req, res) => {
   console.log("POST /leaderboard endpoint hit");
   try {
-    // Destructure and validate required fields from the request body
     const { name, score, timeUsed, allFlipped, date } = req.body;
     if (!name || typeof score !== 'number' || timeUsed === undefined || allFlipped === undefined || !date) {
       console.error("Validation failed. Request body:", req.body);
       return res.status(400).send('Missing required fields');
     }
-    // Add the new score as a document in the 'leaderboard' collection, including a server timestamp
     const docRef = await db.collection('leaderboard').add({
       name,
       score,
@@ -82,7 +82,7 @@ app.post('/leaderboard', async (req, res) => {
   }
 });
 
-// GET /leaderboard/top10: Retrieve the top 10 leaderboard entries from Firestore
+// GET /leaderboard/top10: Retrieve the top 10 leaderboard entries
 app.get('/leaderboard/top10', async (req, res) => {
   try {
     const snapshot = await db.collection('leaderboard')
