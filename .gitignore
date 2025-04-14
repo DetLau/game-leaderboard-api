@@ -1,24 +1,29 @@
 # Node.js dependencies
 /node_modules/
 
-# Environment files (do not commit these as they contain secrets)
+# Environment variables and configuration files (do not commit these as they contain secrets)
 .env
+.env.local
 mongo.env
 
 # Firebase service account key (do not commit this secret)
 serviceAccountKey.json
 
-# Build output
+# Build and output directories
 /dist/
 /build/
 
-# System files
+# System files (macOS, Windows, etc.)
 .DS_Store
+Thumbs.db
 
 # Log files
 *.log
-
-# Others (optional)
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Optional: Temporary files and editor backups
+*.swp
+*.swo
+*~
