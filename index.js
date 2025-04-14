@@ -2,15 +2,16 @@
 const express = require('express');
 const cors = require('cors');
 const admin = require('firebase-admin');
-require('dotenv').config({ path: './mongo.env' }); // Load environment variables from .env
+require('dotenv').config({ path: './mongo.env' }); // Load environment variables from mongo.env
 
 const app = express();
 const port = process.env.PORT || 3001;
 
 console.log("Index.js is running!");
 
-// Initialize Firebase Admin SDK using the service account key
-const serviceAccount = require('./serviceAccountKey.json');
+// Initialize Firebase Admin SDK using the credentials from the environment variable
+// This expects that FIREBASE_SERVICE_ACCOUNT is set in mongo.env as a single-line JSON string.
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
@@ -31,9 +32,9 @@ app.use((req, res, next) => {
   next();
 });
 
-// Default route to verify the API is running
+// Default route to verify that the API is running
 app.get('/', (req, res) => {
-  res.send('Leaderboard API is running on port 3001');
+  res.send('Leaderboard API is running on port ' + port);
 });
 
 // Temporary Test Endpoint (for debugging POST requests)
@@ -46,14 +47,11 @@ app.post('/test', (req, res) => {
 app.post('/leaderboard', async (req, res) => {
   console.log("POST /leaderboard endpoint hit");
   try {
-    // Destructure and validate required fields
     const { name, score, timeUsed, allFlipped, date } = req.body;
     if (!name || typeof score !== 'number' || timeUsed === undefined || allFlipped === undefined || !date) {
       console.error("Validation failed. Request body:", req.body);
       return res.status(400).send('Missing required fields');
     }
-
-    // Add the new score as a document in the 'leaderboard' collection with a server timestamp
     const docRef = await db.collection('leaderboard').add({
       name,
       score,
@@ -62,7 +60,6 @@ app.post('/leaderboard', async (req, res) => {
       date,
       timestamp: admin.firestore.FieldValue.serverTimestamp()
     });
-
     console.log('Added document with ID:', docRef.id);
     res.status(201).send(`Score added successfully with ID: ${docRef.id}`);
   } catch (error) {
@@ -79,7 +76,6 @@ app.get('/leaderboard/top10', async (req, res) => {
       .orderBy('timestamp', 'asc')
       .limit(10)
       .get();
-
     const scores = [];
     snapshot.forEach(doc => {
       scores.push({
@@ -87,7 +83,6 @@ app.get('/leaderboard/top10', async (req, res) => {
         ...doc.data()
       });
     });
-
     res.status(200).json(scores);
   } catch (error) {
     console.error('Error fetching leaderboard:', error);
@@ -100,8 +95,6 @@ app.delete('/leaderboard', async (req, res) => {
   try {
     const collectionRef = db.collection('leaderboard');
     const query = collectionRef.orderBy('timestamp').limit(500);
-
-    // Recursive batch deletion function
     async function deleteQueryBatch(query, resolve) {
       const snapshot = await query.get();
       if (snapshot.size === 0) {
@@ -118,11 +111,9 @@ app.delete('/leaderboard', async (req, res) => {
         deleteQueryBatch(query, resolve);
       });
     }
-
     await new Promise((resolve, reject) => {
       deleteQueryBatch(query, resolve).catch(reject);
     });
-
     res.status(204).send('Leaderboard cleared successfully');
   } catch (error) {
     console.error('Error clearing leaderboard:', error);
