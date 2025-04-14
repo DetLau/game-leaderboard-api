@@ -8,36 +8,55 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const LEADERBOARD_FILE = path.join(__dirname, 'leaderboard.json');
 
+// Enable CORS and JSON parsing
 app.use(cors());
 app.use(express.json());
 
-// Load the leaderboard data from the file, or return an empty array if the file doesn't exist
+// Improved function to load leaderboard data from the file
 function loadLeaderboard() {
   if (fs.existsSync(LEADERBOARD_FILE)) {
     try {
-      const data = fs.readFileSync(LEADERBOARD_FILE, 'utf8');
+      const data = fs.readFileSync(LEADERBOARD_FILE, 'utf8').trim();
+      if (!data) return [];
       return JSON.parse(data);
     } catch (err) {
       console.error('Error reading leaderboard file:', err);
+      // Reset the leaderboard file to an empty array if parsing fails
+      saveLeaderboard([]);
       return [];
     }
   }
   return [];
 }
 
-// Save the leaderboard data to the file
+// Function to save leaderboard data to the file with basic error handling
 function saveLeaderboard(data) {
-  fs.writeFileSync(LEADERBOARD_FILE, JSON.stringify(data, null, 2));
+  try {
+    fs.writeFileSync(LEADERBOARD_FILE, JSON.stringify(data, null, 2));
+  } catch (err) {
+    console.error('Error writing leaderboard file:', err);
+  }
 }
 
-// Initialize leaderboard from file (or start with an empty array)
+// Initialize leaderboard (or empty array if file is missing or invalid)
 let leaderboard = loadLeaderboard();
+
+// Root endpoint to verify that the API is running
+app.get('/', (req, res) => {
+  res.send(`Leaderboard API is running on port ${PORT}`);
+});
+
+// Temporary Test Endpoint (for debugging POST requests)
+app.post('/test', (req, res) => {
+  console.log("POST /test endpoint hit");
+  res.send("Test endpoint reached");
+});
 
 // POST /leaderboard: Submit a new score
 app.post('/leaderboard', (req, res) => {
   const newScore = req.body;
 
-  // Validate that "name" exists and "score" is a number.
+  // Validate required fields
   if (!newScore.name || typeof newScore.score !== 'number') {
     return res.status(400).json({ error: 'Invalid score data' });
   }
@@ -46,9 +65,9 @@ app.post('/leaderboard', (req, res) => {
   leaderboard.push(newScore);
 
   // Sort the leaderboard:
-  // 1. Highest score first.
+  // 1. Higher score comes first.
   // 2. If scores are equal and timeUsed is provided, the lower timeUsed wins.
-  // 3. Otherwise, more recent dates win.
+  // 3. Otherwise, more recent date wins.
   leaderboard.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
     if (a.timeUsed && b.timeUsed) return a.timeUsed - b.timeUsed;
@@ -58,7 +77,7 @@ app.post('/leaderboard', (req, res) => {
   // Keep only the top 10 scores
   leaderboard = leaderboard.slice(0, 10);
 
-  // Save the updated leaderboard to file
+  // Save the updated leaderboard back to the file
   saveLeaderboard(leaderboard);
 
   res.status(201).json({ message: 'Score submitted successfully' });
@@ -74,11 +93,6 @@ app.delete('/leaderboard', (req, res) => {
   leaderboard = [];
   saveLeaderboard(leaderboard);
   res.json({ message: 'Leaderboard cleared' });
-});
-
-// Root endpoint to verify that the API is running
-app.get('/', (req, res) => {
-  res.send('Leaderboard API is running on port ' + PORT);
 });
 
 // Start the server
