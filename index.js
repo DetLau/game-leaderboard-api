@@ -9,30 +9,24 @@ const port = process.env.PORT || 3001;
 
 console.log("Index.js is running!");
 
-// Check that the environment variable exists
+// Ensure that the FIREBASE_SERVICE_ACCOUNT environment variable exists
 if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
   console.error("FIREBASE_SERVICE_ACCOUNT is not defined in your environment");
   process.exit(1);
 }
 
-// Obtain the raw string from the environment variable
-const rawServiceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
-
-// For debugging: Uncomment the line below to see the raw value in the logs
-// console.log("Raw FIREBASE_SERVICE_ACCOUNT:", rawServiceAccount);
-
-// Replace any escaped newline characters ("\\n") with actual newline characters
-const fixedServiceAccount = rawServiceAccount.replace(/\\n/g, '\n');
+// Decode the base64-encoded service account JSON from the environment variable
+const decodedServiceAccount = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT, 'base64').toString('utf8');
 
 let serviceAccount;
 try {
-  serviceAccount = JSON.parse(fixedServiceAccount);
+  serviceAccount = JSON.parse(decodedServiceAccount);
 } catch (err) {
-  console.error("Error parsing FIREBASE_SERVICE_ACCOUNT:", err);
+  console.error("Error parsing decoded FIREBASE_SERVICE_ACCOUNT:", err);
   process.exit(1);
 }
 
-// Initialize the Firebase Admin SDK with the parsed credentials
+// Initialize Firebase Admin SDK with the decoded credentials
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
 });
@@ -44,18 +38,18 @@ const db = admin.firestore();
 app.use(cors());
 app.use(express.json());
 
-// Global request logger for debugging purposes
+// Global request logger for debugging
 app.use((req, res, next) => {
   console.log(`Incoming request: ${req.method} ${req.url}`);
   next();
 });
 
-// Root endpoint to verify that the API is running
+// Root endpoint to confirm the API is running
 app.get('/', (req, res) => {
   res.send(`Leaderboard API is running on port ${port}`);
 });
 
-// Temporary Test Endpoint (for debugging POST requests)
+// Temporary Test Endpoint (for POST debugging)
 app.post('/test', (req, res) => {
   console.log("POST /test endpoint hit");
   res.send("Test endpoint reached");
@@ -65,11 +59,13 @@ app.post('/test', (req, res) => {
 app.post('/leaderboard', async (req, res) => {
   console.log("POST /leaderboard endpoint hit");
   try {
+    // Destructure and validate required fields from the request body
     const { name, score, timeUsed, allFlipped, date } = req.body;
     if (!name || typeof score !== 'number' || timeUsed === undefined || allFlipped === undefined || !date) {
       console.error("Validation failed. Request body:", req.body);
       return res.status(400).send('Missing required fields');
     }
+    // Add the new score as a document in the 'leaderboard' collection, including a server timestamp
     const docRef = await db.collection('leaderboard').add({
       name,
       score,
@@ -86,7 +82,7 @@ app.post('/leaderboard', async (req, res) => {
   }
 });
 
-// GET /leaderboard/top10: Retrieve the top 10 leaderboard entries
+// GET /leaderboard/top10: Retrieve the top 10 leaderboard entries from Firestore
 app.get('/leaderboard/top10', async (req, res) => {
   try {
     const snapshot = await db.collection('leaderboard')
@@ -105,31 +101,20 @@ app.get('/leaderboard/top10', async (req, res) => {
   }
 });
 
-// DELETE /leaderboard: Clear the leaderboard using batch deletion
+// DELETE /leaderboard: Clear the leaderboard in Firestore
 app.delete('/leaderboard', async (req, res) => {
   try {
     const collectionRef = db.collection('leaderboard');
-    const query = collectionRef.orderBy('timestamp').limit(500);
-    async function deleteQueryBatch(query, resolve) {
-      const snapshot = await query.get();
-      if (snapshot.size === 0) {
-        resolve();
-        return;
-      }
-      const batch = db.batch();
-      snapshot.docs.forEach(doc => {
-        batch.delete(doc.ref);
-      });
-      await batch.commit();
-      console.log(`Deleted ${snapshot.size} documents`);
-      process.nextTick(() => {
-        deleteQueryBatch(query, resolve);
-      });
+    const snapshot = await collectionRef.get();
+    if (snapshot.empty) {
+      return res.status(200).send("No leaderboard entries found");
     }
-    await new Promise((resolve, reject) => {
-      deleteQueryBatch(query, resolve).catch(reject);
+    const batch = db.batch();
+    snapshot.forEach(doc => {
+      batch.delete(doc.ref);
     });
-    res.status(204).send('Leaderboard cleared successfully');
+    await batch.commit();
+    res.status(204).send("Leaderboard cleared successfully");
   } catch (error) {
     console.error('Error clearing leaderboard:', error);
     res.status(500).send('Error clearing leaderboard');
