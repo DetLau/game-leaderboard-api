@@ -1,4 +1,3 @@
-// index.js
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
@@ -42,6 +41,12 @@ app.post('/leaderboard', (req, res) => {
     return res.status(400).json({ error: 'Invalid score data' });
   }
 
+  // Check if there is already an entry with the same name.
+  const existingEntry = leaderboard.find(entry => entry.name === newScore.name);
+  if (existingEntry) {
+    return res.status(400).json({ error: 'Duplicate score submission not allowed' });
+  }
+
   // Add the new score to the leaderboard array
   leaderboard.push(newScore);
 
@@ -67,7 +72,7 @@ app.post('/leaderboard', (req, res) => {
 // GET /leaderboard/top10: Retrieve the top 10 leaderboard entries
 app.get('/leaderboard/top10', (req, res) => {
   res.json(leaderboard);
-}); 
+});
 
 // DELETE /leaderboard: Clear the leaderboard
 app.delete('/leaderboard', (req, res) => {
