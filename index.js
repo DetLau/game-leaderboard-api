@@ -67,7 +67,7 @@ app.post('/leaderboard', (req, res) => {
 // GET /leaderboard/top10: Retrieve the top 10 leaderboard entries
 app.get('/leaderboard/top10', (req, res) => {
   res.json(leaderboard);
-});
+}); 
 
 // DELETE /leaderboard: Clear the leaderboard
 app.delete('/leaderboard', (req, res) => {
