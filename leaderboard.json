@@ -1,15 +1,22 @@
 [
   {
-    "name": "slaffi",
+    "name": "Slaffi",
     "score": 28,
-    "timeUsed": 21,
-    "allFlipped": false,
+    "timeUsed": 26,
+    "allFlipped": true,
     "date": "2025-04-15T12:10:57.652Z"
   },
   {
-    "name": "Skyggetræ Flintespli",
+    "name": "Skyggetræ Flintesplint",
     "score": 28,
     "timeUsed": 31,
+    "allFlipped": true,
+    "date": "2025-04-15T08:39:26.415Z"
+  },
+  {
+    "name": "16.1",
+    "score": 0,
+    "timeUsed": 30,
     "allFlipped": false,
     "date": "2025-04-15T08:39:26.415Z"
   }
