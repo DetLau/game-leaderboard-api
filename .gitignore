@@ -6,6 +6,8 @@
 .env.local
 mongo.env
 
+# Firebase service account key (do not commit this secret)
+serviceAccountKey.json
 
 # Build and output directories
 /dist/
