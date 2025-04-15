@@ -63,9 +63,9 @@ app.post('/leaderboard', (req, res) => {
   const newScore = req.body;
 
   // Validate that "name" exists and "score" is a number.
-  if (!newScore.name || typeof newScore.score !== 'number') {
-    return res.status(400).json({ error: 'Invalid score data' });
-  }
+  //if (!newScore.name || typeof newScore.score !== 'number') {
+    //return res.status(400).json({ error: 'Invalid score data' });
+  //}
 
   // Check if there is already an entry with the same name.
   const index = leaderboard.findIndex(entry => entry.name === newScore.name);
@@ -74,7 +74,7 @@ app.post('/leaderboard', (req, res) => {
     if (isBetterScore(newScore, leaderboard[index])) {
       leaderboard[index] = newScore;
     } else {
-      return res.status(400).json({ error: 'New score is not better than the existing one' });
+      return res.status(400).json({ error: 'How is it possible that you’re getting worse? Don’t submit that BS again.' });
     }
   } else {
     // No duplicate: add the new score.
