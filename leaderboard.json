@@ -1,5 +1,19 @@
 [
   {
+    "name": "Okaaay let's go",
+    "score": 29,
+    "timeUsed": 34,
+    "allFlipped": false,
+    "date": "2025-04-15T08:39:26.415Z"
+  },
+  {
+    "name": "Juliette",
+    "score": 28,
+    "timeUsed": 24,
+    "allFlipped": false,
+    "date": "2025-04-15T08:39:26.415Z"
+  },
+  {
     "name": "Slaffi",
     "score": 28,
     "timeUsed": 29,
@@ -17,20 +31,6 @@
     "name": "16.1",
     "score": 0,
     "timeUsed": 30,
-    "allFlipped": false,
-    "date": "2025-04-15T08:39:26.415Z"
-  },
-  {
-    "name": "Juliette",
-    "score": 28,
-    "timeUsed": 24,
-    "allFlipped": false,
-    "date": "2025-04-15T08:39:26.415Z"
-  },
-  {
-    "name": "Okaaay let's go",
-    "score": 29,
-    "timeUsed": 34,
     "allFlipped": false,
     "date": "2025-04-15T08:39:26.415Z"
   }
