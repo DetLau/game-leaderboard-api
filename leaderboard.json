@@ -2,21 +2,35 @@
   {
     "name": "Slaffi",
     "score": 28,
-    "timeUsed": 26,
-    "allFlipped": true,
+    "timeUsed": 29,
+    "allFlipped": false,
     "date": "2025-04-15T12:10:57.652Z"
   },
   {
     "name": "Skyggetræ Flintesplint",
     "score": 28,
     "timeUsed": 31,
-    "allFlipped": true,
+    "allFlipped": false,
     "date": "2025-04-15T08:39:26.415Z"
   },
   {
     "name": "16.1",
     "score": 0,
     "timeUsed": 30,
+    "allFlipped": false,
+    "date": "2025-04-15T08:39:26.415Z"
+  },
+  {
+    "name": "Juliette",
+    "score": 28,
+    "timeUsed": 31,
+    "allFlipped": false,
+    "date": "2025-04-15T08:39:26.415Z"
+  },
+  {
+    "name": "Okaaay let's go",
+    "score": 29,
+    "timeUsed": 34,
     "allFlipped": false,
     "date": "2025-04-15T08:39:26.415Z"
   }
